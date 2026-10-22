@@ -69,7 +69,7 @@ Ingestion, embedding, and retrieval run locally. Only the LLM call and the deplo
 | Serving | FastAPI |
 | Frontend | Single HTML page (vanilla JS), served by FastAPI |
 | Experiment tracking | MLflow |
-| Evaluation | Ragas |
+| Evaluation | Ragas (faithfulness) + labelled retrieval metrics |
 | Monitoring | Evidently |
 | Containerization | Docker |
 | CI/CD | GitHub Actions |
@@ -113,7 +113,7 @@ fascicle/
 │   ├── ingest/                 # parse, chunk, embed, load to vector store
 │   ├── rag/                    # retrieval, generation, citation assembly
 │   ├── api/                    # FastAPI app (query, stream, health)
-│   ├── eval/                   # Ragas harness
+│   ├── eval/                   # evaluation harness
 │   └── monitoring/             # Evidently drift checks
 ├── frontend/index.html         # web UI, served at /
 ├── eval/
@@ -148,9 +148,10 @@ fascicle/
 - [x] Source panel showing the papers and sections each answer drew from
 
 ### Phase 4 — Evaluation
-- [ ] ~20 question → reference answer pairs in `eval/questions.jsonl`
-- [ ] Ragas metrics: retrieval precision, answer faithfulness
-- [ ] Baseline results recorded in MLflow, with chunk size, top-k, and prompt variants as params
+- [x] 24 question → reference answer pairs in `eval/questions.jsonl`, each labelled with its source paper(s)
+- [x] Metrics: retrieval hit rate / precision / MRR, answer faithfulness (Ragas), answer correctness
+- [x] Baseline results recorded in MLflow, with chunk size, top-k, and prompt variants as params
+- [ ] Improve retrieval against the baseline
 
 ### Phase 5 — Containerization and CI
 - [ ] Multi-stage `Dockerfile`
@@ -205,15 +206,32 @@ Adding a paper: put the PDF in `papers/raw/`, add its entry to `papers/manifest.
 ## Evaluation
 
 ```bash
-python -m src.eval.run --questions eval/questions.jsonl
+python -m src.eval.run              # full run: retrieval + answers judged by DeepSeek (~5 min)
+python -m src.eval.run --no-judge   # retrieval metrics only, no LLM calls (seconds)
+mlflow ui --backend-store-uri sqlite:///mlflow.db   # browse and compare runs
 ```
 
-Reports retrieval precision and answer faithfulness, logged to MLflow.
+Each question in `eval/questions.jsonl` has a reference answer and the paper(s) that contain it.
 
-| Metric | Baseline | Current |
+| Metric | What it measures | Baseline |
 |---|---|---|
-| Retrieval precision | — | — |
-| Faithfulness | — | — |
+| Hit rate | Questions with at least one retrieved chunk from a relevant paper | 1.000 |
+| Precision | Retrieved chunks that come from a relevant paper | 0.675 |
+| MRR | 1 / rank of the first relevant chunk | 0.833 |
+| Faithfulness | Answer claims supported by the retrieved passages (Ragas, DeepSeek judge) | 0.972 |
+| Correctness | Reference-answer claims covered by the answer (DeepSeek judge) | 0.688 |
+
+Baseline: `all-MiniLM-L6-v2` embeddings, 1000-char sentence chunks, k = 5, `deepseek-reasoner`. Answers rarely invent claims; most lost correctness comes from questions where retrieval misses the key passage and the model correctly says the sources don't cover it. LLM answers and judging vary between runs by a few points, so treat differences under ~0.05 as noise.
+
+### Experiments
+
+| Change | Hit rate | Precision | MRR | Outcome |
+|---|---|---|---|---|
+| Baseline: `all-MiniLM-L6-v2` | 1.000 | 0.675 | 0.833 | kept |
+| `BAAI/bge-base-en-v1.5` | 0.875 | 0.667 | 0.800 | reverted |
+| `BAAI/bge-base-en-v1.5` + BGE query instruction | 0.875 | 0.692 | 0.812 | reverted |
+
+bge-base retrieved better for conceptual questions (DSI, brainstem segmentation, the reeler mouse study) but lost questions keyed on acronyms and author names (FACT, CSA, "Tuch et al."), returning generic tracking passages instead. Exact-term matching is a dense-embedding weakness, which points to hybrid retrieval (BM25 + dense) as the next experiment.
 
 ---
 

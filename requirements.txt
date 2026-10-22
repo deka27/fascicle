@@ -1,4 +1,4 @@
-# Phase 1 only; add mlflow/ragas/evidently when their phase starts
+# add evidently when monitoring starts
 pypdf
 sentence-transformers
 chromadb
@@ -7,3 +7,6 @@ fastapi
 uvicorn[standard]
 python-dotenv
 pytest
+ragas
+langchain-community<0.4  # ragas 0.4.3 imports a module removed in langchain-community 0.4
+mlflow
