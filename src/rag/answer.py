@@ -8,7 +8,7 @@ from src.rag.store import collection
 
 load_dotenv()
 
-MODEL = "deepseek-chat"
+MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")  # or deepseek-reasoner
 SYSTEM = (
     "You answer questions about diffusion MRI and tractography using only the numbered sources provided. "
     "Cite sources inline as [n] after each claim. If the sources do not contain the answer, say so instead of guessing."
@@ -45,9 +45,16 @@ def answer(question, k=5):
 
 
 def stream_answer(question, k=5):
-    """Yield the sources first, then the answer token by token."""
+    """Yield the sources, a {"status": "thinking"} event if the model reasons first, then the answer token by token."""
     sources = retrieve(question, k)
     yield {"sources": sources}
+    thinking = False
     for part in client().chat.completions.create(model=MODEL, messages=messages(question, sources), stream=True):
-        if part.choices and (token := part.choices[0].delta.content):
-            yield {"token": token}
+        if not part.choices:
+            continue
+        delta = part.choices[0].delta
+        if not thinking and getattr(delta, "reasoning_content", None):  # deepseek-reasoner streams its reasoning first
+            thinking = True
+            yield {"status": "thinking"}
+        if delta.content:
+            yield {"token": delta.content}

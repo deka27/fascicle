@@ -1,4 +1,6 @@
 {
+  "lebihan2001.pdf": {"authors": "Le Bihan et al.", "year": 2001, "journal": "Journal of Magnetic Resonance Imaging", "title": "Diffusion tensor imaging: concepts and applications"},
+  "Sotiropoulos2017.pdf": {"authors": "Sotiropoulos & Zalesky", "year": 2019, "journal": "NMR in Biomedicine", "title": "Building connectomes using diffusion MRI: why, how and but"},
   "Fibertracking1999AnnNeur.pdf": {"authors": "Mori et al.", "year": 1999, "journal": "Annals of Neurology", "title": "Three-dimensional tracking of axonal projections in the brain by magnetic resonance imaging"},
   "HBM-18-306.pdf": {"authors": "Lazar et al.", "year": 2003, "journal": "Human Brain Mapping", "title": "White matter tractography using diffusion tensor deflection"},
   "Mori_vanZijl_2002.pdf": {"authors": "Mori & van Zijl", "year": 2002, "journal": "NMR in Biomedicine", "title": "Fiber tracking: principles and strategies - a technical review"},

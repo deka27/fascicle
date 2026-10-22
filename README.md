@@ -2,8 +2,6 @@
 
 **Retrieval-augmented question answering over the tractography and diffusion-MRI literature.**
 
-> *fascicle* (n.) — (1) a bundle of nerve fibers running together through the brain; (2) one installment of a work published in parts.
-
 Ask a question about diffusion MRI, fiber tracking, bundle segmentation, or microstructure modeling. Fascicle retrieves the relevant passages from a curated corpus of research papers and answers **with citations back to the source paper and section**.
 
 ---
@@ -69,7 +67,7 @@ Ingestion, embedding, and retrieval run locally. Only the LLM call and the deplo
 | Vector store | Chroma |
 | LLM | DeepSeek API (OpenAI-compatible) |
 | Serving | FastAPI |
-| Frontend | Streamlit or React |
+| Frontend | Single HTML page (vanilla JS), served by FastAPI |
 | Experiment tracking | MLflow |
 | Evaluation | Ragas |
 | Monitoring | Evidently |
@@ -117,7 +115,7 @@ fascicle/
 │   ├── api/                    # FastAPI app (query, stream, health)
 │   ├── eval/                   # Ragas harness
 │   └── monitoring/             # Evidently drift checks
-├── frontend/                   # web UI
+├── frontend/index.html         # web UI, served at /
 ├── eval/
 │   └── questions.jsonl         # question → reference answer pairs
 ├── tests/
@@ -146,8 +144,8 @@ fascicle/
 - [ ] Metadata filters (year, author)
 
 ### Phase 3 — Web UI
-- [ ] Question box with streamed answer and visible citations
-- [ ] Source panel showing the papers and sections each answer drew from
+- [x] Question box with streamed answer and visible citations
+- [x] Source panel showing the papers and sections each answer drew from
 
 ### Phase 4 — Evaluation
 - [ ] ~20 question → reference answer pairs in `eval/questions.jsonl`
@@ -178,7 +176,7 @@ cp .env.example .env          # add your API key
 # ingest the corpus
 python -m src.ingest.run --papers papers/raw
 
-# run the API
+# run the API + web UI, then open http://localhost:8000
 uvicorn src.api.main:app --reload
 ```
 
