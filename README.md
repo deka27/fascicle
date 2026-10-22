@@ -198,7 +198,7 @@ docker run -p 8000:8000 --env-file .env -v "$PWD/chroma:/app/chroma" fascicle
 
 The app runs as one Fargate task (ARM64, 0.5 vCPU / 2 GB) in `us-east-2`, pulled from a private ECR repository. The deploy image is the app image plus the index, so it stays in the private registry; the DeepSeek key is read from SSM Parameter Store (`/fascicle/deepseek-api-key`) at start-up. The task definition is in [`.aws/task-definition.json`](.aws/task-definition.json).
 
-**Continuous deployment.** On every push to `main`, after lint and tests pass, GitHub Actions builds the image on an ARM runner, adds the index from a private S3 bucket (`s3://fascicle-index-008402585108/index.tar.gz`), pushes it to ECR tagged with the commit SHA, and updates the ECS service. AWS access uses a least-privilege deploy user (push to this repository, read the index object, update this one service) whose keys are GitHub secrets. A deploy keeps the service's desired count, so a scaled-to-zero service stays off and starts on the latest version. ECR keeps the 5 newest images.
+**Continuous deployment.** On every push to `main`, after lint and tests pass, GitHub Actions builds the image on an ARM runner, adds the index from a private S3 bucket (`s3://fascicle-index-008402585108/index.tar.gz`), pushes it to ECR tagged with the commit SHA, and updates the ECS service. GitHub Actions signs in to AWS as a dedicated IAM user, `fascicle-deploy`, whose access keys are stored as GitHub secrets; it can only push to this ECR repository, read the index object, and update this one ECS service. A deploy keeps the service's desired count, so a scaled-to-zero service stays off and starts on the latest version. ECR keeps the 5 newest images.
 
 After re-ingesting the corpus, upload the new index so the next deploy picks it up:
 
@@ -277,7 +277,7 @@ bge-base retrieved better for conceptual questions (DSI, brainstem segmentation,
 ## Future work
 
 - Hybrid retrieval (BM25 + dense) with a reranker
-- Keyless CI deploys via GitHub OIDC instead of a deploy user's access keys (OIDC providers are blocked in the current AWS account)
+- Sign GitHub Actions in to AWS with short-lived OIDC credentials instead of the stored access keys of `fascicle-deploy`
 - Monitoring with Evidently: log production queries, then track drift of query embeddings away from the corpus and answer-quality regressions
 - Multi-turn conversation
 - Figure and table extraction
