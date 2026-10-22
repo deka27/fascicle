@@ -1,33 +1,32 @@
 # Fascicle
 
-**A retrieval-augmented question-answering system over the tractography & diffusion-MRI literature.**
+**Retrieval-augmented question answering over the tractography and diffusion-MRI literature.**
 
-> *fascicle* (n.) — (1) a bundle of nerve fibers running together through the brain; (2) one installment of a work published in parts. A literature assistant for tractography earns both meanings.
+> *fascicle* (n.) — (1) a bundle of nerve fibers running together through the brain; (2) one installment of a work published in parts.
 
-Ask a question about diffusion MRI, fiber tracking, bundle segmentation, or microstructure modeling, and Fascicle retrieves the relevant passages from a curated corpus of papers and documentation, then answers **with citations back to the source**. Built locally first, then hardened into a deployed, monitored, continuously-integrated service.
-
----
-
-## Why this project exists
-
-Two reasons, and they're worth being honest about:
-
-1. **It's a real ML system end-to-end.** RAG app → containerized API → cloud deployment → evaluation harness → monitoring → CI/CD. That single arc covers the three skills hiring managers screen for (LLM application engineering, MLOps, cloud) in one artifact instead of three disconnected tutorials.
-2. **It's in a domain I actually know.** Building this over tractography literature means I can make informed chunking and retrieval choices, write a *correct* evaluation set (because I know the right answers), and defend every design decision in an interview. A generic "chat with PDF" demo can't do that. The domain is the differentiator.
-
-The deliverable is not "I studied MLOps." It's "here is a deployed system, here are its evaluation numbers, here is the architecture, ask me anything about it."
+Ask a question about diffusion MRI, fiber tracking, bundle segmentation, or microstructure modeling. Fascicle retrieves the relevant passages from a curated corpus of research papers and answers **with citations back to the source paper and section**.
 
 ---
 
-## What it does
+## Motivation
 
-- Ingests a corpus of dMRI / tractography papers and documentation (PDFs + text).
-- Chunks and embeds them into a searchable vector store.
-- Answers natural-language questions using only retrieved context, with inline citations to the originating paper and section.
+General-purpose "chat with your PDFs" tools handle scientific literature poorly: multi-column layouts, equations, and figure captions break extraction, and answers rarely say where a claim came from. Fascicle targets one field and is built around three ideas:
+
+- **Domain-aware ingestion.** Chunks follow paper structure (Abstract / Methods / Results) so retrieval and citations can point at a specific section.
+- **Grounded answers.** The model answers only from retrieved context, and every answer carries citations.
+- **Measured quality.** A hand-written evaluation set with known correct answers tracks retrieval precision and faithfulness across changes.
+
+---
+
+## Features
+
+- Ingests dMRI / tractography papers (PDF + text).
+- Chunks and embeds them into a local vector store.
+- Answers natural-language questions from retrieved context, with inline citations.
 - Streams responses through a REST API.
-- Measures its own answer quality (retrieval precision + faithfulness) against a hand-built evaluation set.
-- Detects drift and quality regressions in production.
-- Redeploys automatically on every merge to `main`.
+- Evaluates retrieval precision and answer faithfulness against a fixed question set.
+- Monitors input drift and quality regressions in production.
+- Deploys automatically on merge to `main`.
 
 ---
 
@@ -56,52 +55,51 @@ The deliverable is not "I studied MLOps." It's "here is a deployed system, here 
                                                               Monitoring (Evidently)
 ```
 
-Everything left of the LLM call runs on your machine for free. Only the final deployed service touches the cloud.
+Ingestion, embedding, and retrieval run locally. Only the LLM call and the deployed service use external resources.
 
 ---
 
 ## Tech stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Language | Python 3.11 | Default for ML |
-| RAG framework | LlamaIndex (or LangChain) | Handles chunking, retrieval, orchestration; pick one and commit |
-| Embeddings | `sentence-transformers` locally, or an API embedding model | Local = free during dev |
-| Vector store | Chroma | Runs locally, zero infra to start |
-| LLM | Anthropic or OpenAI API | Swappable behind one interface |
-| Serving | FastAPI | Async, streaming, clean API |
-| Frontend | React (or Streamlit) | Turns the service into a demoable product; Streamlit = fast, React = more impressive |
-| Experiment tracking | MLflow | Log prompts, params, eval metrics; model registry |
-| Containerization | Docker | "Runs anywhere," reproducible |
-| CI/CD | GitHub Actions | Lint, test, build, deploy on merge |
-| Cloud | AWS (ECS) or Google Cloud Run | Final deployment only |
-| Evaluation | Ragas | Retrieval precision, faithfulness |
-| Monitoring | Evidently | Embedding drift, quality metrics |
-
-> Rule: **one tool per job.** Do not evaluate alternatives mid-build. Survey later if ever.
+| Layer | Choice |
+|---|---|
+| Language | Python 3.12 |
+| PDF parsing | `pypdf` |
+| Embeddings | `sentence-transformers` (local) |
+| Vector store | Chroma |
+| LLM | Anthropic API |
+| Serving | FastAPI |
+| Frontend | Streamlit or React |
+| Experiment tracking | MLflow |
+| Evaluation | Ragas |
+| Monitoring | Evidently |
+| Containerization | Docker |
+| CI/CD | GitHub Actions |
+| Deployment | Google Cloud Run or AWS ECS |
 
 ---
 
-## Knowledge source (the corpus)
+## Corpus
 
-Start small — ~10–15 documents is enough to build the whole pipeline. Expand later.
+The seed corpus covers:
 
-Suggested seed corpus (you know these better than anyone):
-- DIPY documentation / tutorials
-- Foundational tracking papers: deterministic (EuDX), probabilistic tracking, CSD / FOD-based tracking
-- Bundle segmentation / RecoBundles, atlas-based approaches
-- Microstructure models (DTI, NODDI, etc.) for context questions
-- A couple of review / survey papers for broad-coverage questions
+- Diffusion tensor imaging and its foundations (Basser et al.)
+- Deterministic and probabilistic fiber tracking (Mori, Conturo, Jones, …)
+- High angular resolution methods: Q-ball, CSD / FOD-based tracking (Tuch, Tournier, Descoteaux, Jeurissen, …)
+- Diffusion spectrum imaging and fiber architecture (Wedeen et al.)
+- Tract anatomy and dissection (Catani et al.)
 
-Organize as:
+Planned additions: probabilistic tracking (Behrens), anatomically-constrained tractography and SIFT, bundle segmentation (RecoBundles, TractSeg), microstructure models (NODDI, DKI), known limitations of tractography, and review papers.
+
+Layout:
 ```
 papers/
-  raw/            # original PDFs
+  raw/            # original PDFs (gitignored)
   processed/      # extracted text + metadata (title, authors, year, section)
-  manifest.json   # list of docs with ids, used for citation lookup
+  manifest.json   # document ids, used for citation lookup
 ```
 
-**Domain note:** scientific PDFs are messy — equations, multi-column layouts, figure captions. Don't aim for perfect extraction. Strip to clean text, keep section labels (Abstract / Methods / Results) as metadata so retrieval and citations can reference them.
+PDFs are not redistributed in this repository. `papers/raw/` is gitignored; supply your own copies.
 
 ---
 
@@ -110,79 +108,62 @@ papers/
 ```
 fascicle/
 ├── README.md
-├── pyproject.toml / requirements.txt
-├── .env.example                # API keys (never commit real keys)
+├── requirements.txt
+├── .env.example                # environment variables (API keys)
 ├── papers/                     # corpus (see above)
 ├── src/
 │   ├── ingest/                 # parse, chunk, embed, load to vector store
-│   ├── rag/                    # retriever + generation + citation assembly
+│   ├── rag/                    # retrieval, generation, citation assembly
 │   ├── api/                    # FastAPI app (query, stream, health)
-│   ├── eval/                   # Ragas harness + the question set
+│   ├── eval/                   # Ragas harness
 │   └── monitoring/             # Evidently drift checks
-├── frontend/                   # web UI (React or Streamlit) that calls the API
+├── frontend/                   # web UI
 ├── eval/
-│   └── questions.jsonl         # your hand-built Q → grounded-answer pairs
-├── tests/                      # pytest
+│   └── questions.jsonl         # question → reference answer pairs
+├── tests/
 ├── Dockerfile
-├── .github/workflows/ci.yml    # GitHub Actions pipeline
-└── notebooks/                  # scratch experiments (kept out of the deployed image)
+├── .github/workflows/ci.yml
+└── notebooks/                  # experiments (excluded from the image)
 ```
 
 ---
 
-## Build roadmap
+## Roadmap
 
-Build in **thin end-to-end slices**. Get an ugly version working start-to-finish before improving any single layer. A deployed mediocre RAG beats a perfect local one you never shipped. Commit to GitHub from Phase 0 — the commit history is itself a signal to recruiters.
+### Phase 0 — Project setup
+- [x] Repository, virtualenv, `requirements.txt`, `.env.example`
+- [x] Corpus collected in `papers/raw/`
 
-### Phase 0 — Repo skeleton *(½ day)*
-- [ ] Create repo, virtualenv, `requirements.txt`, `.env.example`, this README
-- [ ] First commit. Push.
+### Phase 1 — Baseline RAG
+- [ ] Extract text → fixed-size chunks → embed → load into Chroma
+- [ ] Retrieve top-k chunks and answer with one LLM call
+- [ ] `POST /query` endpoint
 
-### Phase 1 — Ugliest possible end-to-end RAG *(2–3 days)*
-- [ ] Drop ~10 papers in `papers/raw/`
-- [ ] Extract text → naive fixed-size chunks → embed → load into Chroma
-- [ ] One retrieval call + one LLM call that answers from retrieved chunks
-- [ ] Wrap it in a single FastAPI `/query` endpoint
-- [ ] **Milestone: you can curl a question and get a grounded answer locally.** That's already a demo.
+### Phase 2 — Retrieval quality
+- [ ] Section-aware chunking with metadata (title, year, section)
+- [ ] Citations in responses (paper + section per claim)
+- [ ] Streaming responses (SSE) and `/health`
+- [ ] MLflow logging of chunk size, top-k, and prompt variants
+- [ ] Metadata filters (year, author)
 
-### Phase 2 — Make the retrieval actually good *(3–5 days)*
-- [ ] Section-aware chunking + metadata (title, year, section)
-- [ ] Citations in the response (which paper + section each claim came from)
-- [ ] Add response streaming (SSE) and a `/health` endpoint
-- [ ] Log experiments (chunk size, top-k, prompt variants) to MLflow
-- [ ] *(Optional)* add an agent/tool layer if you want the "agent" claim — e.g., a tool that filters by year or author
+### Phase 3 — Web UI
+- [ ] Question box with streamed answer and visible citations
+- [ ] Source panel showing the papers and sections each answer drew from
 
-### Phase 2.5 — Web UI (complete the product) *(2–3 days)*
-Keep it deliberately thin. The ML substance is what gets you hired; the UI just makes it clickable.
-- [ ] Single page: a question box → streamed answer with visible citations
-- [ ] Show which papers/sections each answer drew from (this is the "wow" detail — it proves grounding)
-- [ ] Call the FastAPI `/query` (or `/stream`) endpoint; handle loading + errors
-- [ ] Streamlit if you want it done in an afternoon; React if you want it to double as full-stack signal
-- [ ] **Milestone: someone can open a link, type a question, and watch a cited answer appear.** That's a product, not a script.
+### Phase 4 — Evaluation
+- [ ] ~20 question → reference answer pairs in `eval/questions.jsonl`
+- [ ] Ragas metrics: retrieval precision, answer faithfulness
+- [ ] Baseline results recorded in MLflow
 
-> Resist frontend rabbit-holing. A clean, simple UI with real eval numbers behind it beats a beautiful UI with weak retrieval.
+### Phase 5 — Containerization and CI
+- [ ] Multi-stage `Dockerfile`
+- [ ] `pytest` coverage for ingestion and retrieval
+- [ ] GitHub Actions: lint → test → build
 
-### Phase 3 — Evaluation (your differentiator) *(2–3 days)*
-- [ ] Hand-write ~20 question → grounded-answer pairs in `eval/questions.jsonl` (use your domain knowledge)
-- [ ] Wire up Ragas: measure retrieval precision + answer faithfulness
-- [ ] Record baseline numbers in MLflow; iterate retrieval to improve them
-- [ ] **Milestone: you have real quality numbers to put in the README and say out loud in interviews.**
-
-### Phase 4 — Containerize + CI *(1–2 days)*
-- [ ] Write `Dockerfile` (multi-stage), run the whole app in a container locally
-- [ ] `pytest` for ingestion + retrieval
-- [ ] GitHub Actions: lint → test → build image on every push
-
-### Phase 5 — Deploy + monitor *(2–3 days, cloud billing starts here)*
-- [ ] Push image to a registry, deploy to Cloud Run / ECS
-- [ ] Add Evidently drift monitoring on input embeddings + logged quality metrics
-- [ ] Extend GitHub Actions to deploy on merge to `main`
-- [ ] **Capture proof** (live URL, screenshots, metrics), then **tear the cloud resources down** so you stop paying
-
-### Phase 6 — Package it like it matters *(1 day)*
-- [ ] Finalize README: architecture diagram, eval numbers, screenshots
-- [ ] 2-minute Loom walkthrough
-- [ ] Pin the repo on your GitHub profile
+### Phase 6 — Deployment and monitoring
+- [ ] Container registry + Cloud Run / ECS deployment
+- [ ] Evidently drift monitoring on query embeddings and quality metrics
+- [ ] Deploy on merge to `main`
 
 ---
 
@@ -191,9 +172,9 @@ Keep it deliberately thin. The ML substance is what gets you hired; the UI just 
 ```bash
 git clone https://github.com/deka27/fascicle.git
 cd fascicle
-python -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # add your LLM API key
+cp .env.example .env          # add your API key
 
 # ingest the corpus
 python -m src.ingest.run --papers papers/raw
@@ -210,7 +191,7 @@ curl -X POST localhost:8000/query \
   -d '{"question": "How does probabilistic tracking differ from deterministic tracking?"}'
 ```
 
-Returns an answer plus the source passages and papers it was drawn from.
+Returns an answer with the source passages and papers it was drawn from.
 
 ## Evaluation
 
@@ -218,33 +199,21 @@ Returns an answer plus the source passages and papers it was drawn from.
 python -m src.eval.run --questions eval/questions.jsonl
 ```
 
-Reports retrieval precision and answer faithfulness, logged to MLflow. Run it before and after retrieval changes to prove improvement.
+Reports retrieval precision and answer faithfulness, logged to MLflow.
+
+| Metric | Baseline | Current |
+|---|---|---|
+| Retrieval precision | — | — |
+| Faithfulness | — | — |
 
 ---
 
-## Skills this demonstrates (the resume mapping)
+## Future work
 
-| Layer in this repo | Job-posting language it satisfies |
-|---|---|
-| RAG pipeline, embeddings, prompts | "LLM application development," "RAG," "prompt engineering" |
-| FastAPI service, streaming | "model serving," "REST APIs," "production ML" |
-| React/Streamlit frontend | "full-stack," "end-to-end ownership," "shipped product" |
-| Docker + GitHub Actions | "containerization," "CI/CD," "MLOps" |
-| Cloud deployment | "AWS/GCP," "deploying ML to production" |
-| Ragas eval harness | "model evaluation," "eval frameworks" — the line most candidates can't check |
-| Evidently monitoring | "monitoring," "drift detection," "observability" |
+- Hybrid retrieval (BM25 + dense) with a reranker
+- Multi-turn conversation
+- Figure and table extraction
 
----
+## License and data
 
-## Roadmap / future work
-
-- Hybrid retrieval (BM25 + dense) and a reranker
-- Multi-turn conversation memory
-- Figure/table extraction for richer answers
-- A thin web UI
-
-## Notes
-
-- Never commit API keys. `.env` stays gitignored.
-- Keep cloud resources off except when actively deploying/demoing.
-- This is a learning + portfolio project; respect the licenses of any papers in your corpus and don't redistribute copyrighted PDFs in a public repo (keep `papers/raw/` gitignored).
+Code is provided for research and educational use. Papers in the corpus remain under their publishers' licenses and are not included in this repository.

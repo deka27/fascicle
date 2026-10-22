@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# copyrighted PDFs + derived artifacts stay local
+papers/raw/
+papers/processed/
+chroma/
+mlruns/

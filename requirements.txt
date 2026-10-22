@@ -1,0 +1,9 @@
+# Phase 1 only; add mlflow/ragas/evidently when their phase starts
+pypdf
+sentence-transformers
+chromadb
+anthropic
+fastapi
+uvicorn[standard]
+python-dotenv
+pytest
