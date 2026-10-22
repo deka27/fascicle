@@ -2,7 +2,7 @@
 pypdf
 sentence-transformers
 chromadb
-anthropic
+openai  # DeepSeek is OpenAI-compatible
 fastapi
 uvicorn[standard]
 python-dotenv

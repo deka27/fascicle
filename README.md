@@ -67,7 +67,7 @@ Ingestion, embedding, and retrieval run locally. Only the LLM call and the deplo
 | PDF parsing | `pypdf` |
 | Embeddings | `sentence-transformers` (local) |
 | Vector store | Chroma |
-| LLM | Anthropic API |
+| LLM | DeepSeek API (OpenAI-compatible) |
 | Serving | FastAPI |
 | Frontend | Streamlit or React |
 | Experiment tracking | MLflow |
@@ -135,9 +135,9 @@ fascicle/
 - [x] Corpus collected in `papers/raw/`
 
 ### Phase 1 — Baseline RAG
-- [ ] Extract text → fixed-size chunks → embed → load into Chroma
-- [ ] Retrieve top-k chunks and answer with one LLM call
-- [ ] `POST /query` endpoint
+- [x] Extract text → fixed-size chunks → embed → load into Chroma
+- [x] Retrieve top-k chunks and answer with one LLM call
+- [x] `POST /query` endpoint
 
 ### Phase 2 — Retrieval quality
 - [ ] Section-aware chunking with metadata (title, year, section)
