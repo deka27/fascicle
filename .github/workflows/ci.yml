@@ -24,7 +24,9 @@ jobs:
       - name: Test
         run: python -m pytest -q
 
+  # Pull requests: check the image builds. Pushes to main build it in the deploy job instead.
   build:
+    if: github.event_name == 'pull_request'
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +36,50 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: false  # Phase 6 pushes to a registry and deploys
+          push: false
           tags: fascicle:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-24.04-arm  # Fargate runs ARM64, so build natively
+    concurrency: deploy
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          # least-privilege user: push to this ECR repo, read the index, update this one service
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Fetch the index (private S3; it holds text from the papers, so it is not in git)
+        run: |
+          mkdir chroma
+          aws s3 cp s3://fascicle-index-008402585108/index.tar.gz - | tar xz -C chroma
+      - name: Build and push the deploy image (app + index)
+        id: image
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/fascicle:${{ github.sha }}
+        run: |
+          docker build -t fascicle:app .
+          # the index is its own build context because .dockerignore excludes chroma/
+          printf 'FROM fascicle:app\nCOPY --chown=app . /app/chroma/\n' | docker build -t "${IMAGE}" -f - chroma/
+          docker push "${IMAGE}"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+      - id: taskdef
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: .aws/task-definition.json
+          container-name: fascicle
+          image: ${{ steps.image.outputs.image }}
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.taskdef.outputs.task-definition }}
+          cluster: fascicle
+          service: fascicle  # keeps its desired count, so a scaled-to-zero service stays off
+          wait-for-service-stability: true

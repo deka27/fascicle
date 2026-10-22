@@ -26,9 +26,8 @@ General-purpose "chat with your PDFs" tools handle scientific literature poorly:
 - Chunks and embeds them into a local vector store.
 - Answers natural-language questions from retrieved context, with inline citations.
 - Streams responses through a REST API.
-- Evaluates retrieval precision and answer faithfulness against a fixed question set.
-- Monitors input drift and quality regressions in production.
-- Deploys automatically on merge to `main`.
+- Evaluates retrieval and answer quality against a labelled question set, tracked in MLflow.
+- Ships as a Docker image; every merge to `main` is tested and deployed to AWS ECS Fargate.
 
 ---
 
@@ -48,13 +47,11 @@ General-purpose "chat with your PDFs" tools handle scientific literature poorly:
                               └─────────┬──────────┘
                                          │ retrieve top-k
                                          ▼
-   user query ──▶ FastAPI /query ──▶ Retriever ──▶ LLM (+ context) ──▶ answer + citations
-                       │                                                      │
-                       │                                          logged to MLflow
-                       ▼                                                      │
-                  /health, /stream                                           ▼
-                                                              Eval harness (Ragas)
-                                                              Monitoring (Evidently)
+   user query ──▶ FastAPI /query, /stream ──▶ Retriever ──▶ LLM (+ context) ──▶ answer + citations
+                       │
+                  web UI (/), /health
+
+   eval/questions.jsonl ──▶ eval harness (retrieval metrics + LLM judge) ──▶ MLflow
 ```
 
 Ingestion, embedding, and retrieval run locally. Only the LLM call and the deployed service use external resources.
@@ -74,7 +71,6 @@ Ingestion, embedding, and retrieval run locally. Only the LLM call and the deplo
 | Frontend | Single HTML page (vanilla JS), served by FastAPI |
 | Experiment tracking | MLflow |
 | Evaluation | Ragas (faithfulness) + labelled retrieval metrics |
-| Monitoring | Evidently |
 | Containerization | Docker |
 | CI/CD | GitHub Actions |
 | Deployment | AWS ECS Fargate (ARM64) + ECR |
@@ -118,8 +114,7 @@ fascicle/
 │   ├── ingest/                 # parse, chunk, embed, load to vector store
 │   ├── rag/                    # retrieval, generation, citation assembly
 │   ├── api/                    # FastAPI app (query, stream, health)
-│   ├── eval/                   # evaluation harness
-│   └── monitoring/             # Evidently drift checks
+│   └── eval/                   # evaluation harness
 ├── frontend/index.html         # web UI, served at /
 ├── eval/
 │   └── questions.jsonl         # question → reference answer pairs
@@ -163,10 +158,9 @@ fascicle/
 - [x] `pytest` coverage for chunking, section detection, retrieval, API, and eval metrics
 - [x] GitHub Actions: lint → test → build
 
-### Phase 6 — Deployment and monitoring
+### Phase 6 — Deployment
 - [x] Private ECR registry + ECS Fargate deployment (ARM64, us-east-2), verified live, then scaled to zero
-- [ ] Evidently drift monitoring on query embeddings and quality metrics
-- [ ] Deploy on merge to `main`
+- [x] Deploy on merge to `main` from GitHub Actions
 
 ---
 
@@ -204,7 +198,15 @@ docker run -p 8000:8000 --env-file .env -v "$PWD/chroma:/app/chroma" fascicle
 
 The app runs as one Fargate task (ARM64, 0.5 vCPU / 2 GB) in `us-east-2`, pulled from a private ECR repository. The deploy image is the app image plus the index, so it stays in the private registry; the DeepSeek key is read from SSM Parameter Store (`/fascicle/deepseek-api-key`) at start-up. The task definition is in [`.aws/task-definition.json`](.aws/task-definition.json).
 
-It is scaled to zero when not in use. To run it (~$0.70/day while up):
+**Continuous deployment.** On every push to `main`, after lint and tests pass, GitHub Actions builds the image on an ARM runner, adds the index from a private S3 bucket (`s3://fascicle-index-008402585108/index.tar.gz`), pushes it to ECR tagged with the commit SHA, and updates the ECS service. AWS access uses a least-privilege deploy user (push to this repository, read the index object, update this one service) whose keys are GitHub secrets. A deploy keeps the service's desired count, so a scaled-to-zero service stays off and starts on the latest version. ECR keeps the 5 newest images.
+
+After re-ingesting the corpus, upload the new index so the next deploy picks it up:
+
+```bash
+tar czf - -C chroma . | aws s3 cp - s3://fascicle-index-008402585108/index.tar.gz
+```
+
+The service is scaled to zero when not in use. To run it (~$0.70/day while up):
 
 ```bash
 aws ecs update-service --cluster fascicle --service fascicle --desired-count 1
@@ -275,6 +277,8 @@ bge-base retrieved better for conceptual questions (DSI, brainstem segmentation,
 ## Future work
 
 - Hybrid retrieval (BM25 + dense) with a reranker
+- Keyless CI deploys via GitHub OIDC instead of a deploy user's access keys (OIDC providers are blocked in the current AWS account)
+- Monitoring with Evidently: log production queries, then track drift of query embeddings away from the corpus and answer-quality regressions
 - Multi-turn conversation
 - Figure and table extraction
 
