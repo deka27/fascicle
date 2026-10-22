@@ -6,6 +6,8 @@
 
 Ask a question about diffusion MRI, fiber tracking, bundle segmentation, or microstructure modeling. Fascicle retrieves the relevant passages from a curated corpus of research papers and answers **with citations back to the source paper and section**.
 
+<p align="center"><img src="docs/answer.png" width="600" alt="Fascicle answering a question with numbered citations and a source list showing paper, section and page"></p>
+
 ---
 
 ## Motivation
@@ -75,7 +77,7 @@ Ingestion, embedding, and retrieval run locally. Only the LLM call and the deplo
 | Monitoring | Evidently |
 | Containerization | Docker |
 | CI/CD | GitHub Actions |
-| Deployment | Google Cloud Run or AWS ECS |
+| Deployment | AWS ECS Fargate (ARM64) + ECR |
 
 ---
 
@@ -162,7 +164,7 @@ fascicle/
 - [x] GitHub Actions: lint → test → build
 
 ### Phase 6 — Deployment and monitoring
-- [ ] Container registry + Cloud Run / ECS deployment
+- [x] Private ECR registry + ECS Fargate deployment (ARM64, us-east-2), verified live, then scaled to zero
 - [ ] Evidently drift monitoring on query embeddings and quality metrics
 - [ ] Deploy on merge to `main`
 
@@ -197,6 +199,24 @@ docker run -p 8000:8000 --env-file .env -v "$PWD/chroma:/app/chroma" fascicle
 ```
 
 `/health` reports the number of indexed chunks, so `"chunks": 0` means the index wasn't mounted.
+
+## Deployment (AWS ECS Fargate)
+
+The app runs as one Fargate task (ARM64, 0.5 vCPU / 2 GB) in `us-east-2`, pulled from a private ECR repository. The deploy image is the app image plus the index, so it stays in the private registry; the DeepSeek key is read from SSM Parameter Store (`/fascicle/deepseek-api-key`) at start-up. The task definition is in [`.aws/task-definition.json`](.aws/task-definition.json).
+
+It is scaled to zero when not in use. To run it (~$0.70/day while up):
+
+```bash
+aws ecs update-service --cluster fascicle --service fascicle --desired-count 1
+aws ecs wait services-stable --cluster fascicle --services fascicle
+# public IP of the running task (changes on every start); the app is on port 8000
+TASK=$(aws ecs list-tasks --cluster fascicle --service-name fascicle --query 'taskArns[0]' --output text)
+ENI=$(aws ecs describe-tasks --cluster fascicle --tasks "$TASK" --query "tasks[0].attachments[0].details[?name=='networkInterfaceId'].value" --output text)
+aws ec2 describe-network-interfaces --network-interface-ids "$ENI" --query 'NetworkInterfaces[0].Association.PublicIp' --output text
+
+# stop it
+aws ecs update-service --cluster fascicle --service fascicle --desired-count 0
+```
 
 ## Usage
 

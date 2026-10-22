@@ -10,3 +10,6 @@ papers/processed/
 chroma/
 mlruns/
 mlflow.db
+
+# raw screenshots (browser chrome shows personal bookmarks); cropped copies live in docs/
+screenshots/
