@@ -140,10 +140,9 @@ fascicle/
 - [x] `POST /query` endpoint
 
 ### Phase 2 — Retrieval quality
-- [ ] Section-aware chunking with metadata (title, year, section)
-- [ ] Citations in responses (paper + section per claim)
-- [ ] Streaming responses (SSE) and `/health`
-- [ ] MLflow logging of chunk size, top-k, and prompt variants
+- [x] Section-aware chunking with metadata (title, year, section)
+- [x] Citations in responses (paper + section per claim)
+- [x] Streaming responses (SSE) and `/health`
 - [ ] Metadata filters (year, author)
 
 ### Phase 3 — Web UI
@@ -153,7 +152,7 @@ fascicle/
 ### Phase 4 — Evaluation
 - [ ] ~20 question → reference answer pairs in `eval/questions.jsonl`
 - [ ] Ragas metrics: retrieval precision, answer faithfulness
-- [ ] Baseline results recorded in MLflow
+- [ ] Baseline results recorded in MLflow, with chunk size, top-k, and prompt variants as params
 
 ### Phase 5 — Containerization and CI
 - [ ] Multi-stage `Dockerfile`
@@ -192,6 +191,18 @@ curl -X POST localhost:8000/query \
 ```
 
 Returns an answer with the source passages and papers it was drawn from.
+
+```bash
+# stream the answer as server-sent events: one sources event, then tokens
+curl -N -X POST localhost:8000/stream \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is Q-ball imaging?"}'
+
+# liveness + number of indexed chunks
+curl localhost:8000/health
+```
+
+Adding a paper: put the PDF in `papers/raw/`, add its entry to `papers/manifest.json`, and re-run ingestion (it rebuilds the index).
 
 ## Evaluation
 
