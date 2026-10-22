@@ -1,0 +1,14 @@
+.env
+.git
+.venv
+.github
+__pycache__
+*.pyc
+.DS_Store
+papers/
+chroma/
+mlruns/
+mlflow.db
+eval/
+tests/
+notebooks/

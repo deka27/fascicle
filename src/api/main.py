@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from src.rag.answer import answer, retrieve, stream_answer
 from src.rag.store import collection
 
+log = logging.getLogger(__name__)
 UI = Path(__file__).parents[2] / "frontend" / "index.html"
 
 
@@ -51,7 +52,7 @@ def stream(q: Query):
             for e in stream_answer(q.question, q.k):
                 yield f"data: {json.dumps(e)}\n\n"
         except Exception:
-            logging.exception("stream failed")
+            log.exception("stream failed")
             yield f"data: {json.dumps({'error': 'Answer generation failed. Check the server logs.'})}\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")

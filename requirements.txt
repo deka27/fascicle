@@ -1,4 +1,4 @@
-# add evidently when monitoring starts
+# runtime: what the API container needs
 pypdf
 sentence-transformers
 chromadb
@@ -6,7 +6,3 @@ openai  # DeepSeek is OpenAI-compatible
 fastapi
 uvicorn[standard]
 python-dotenv
-pytest
-ragas
-langchain-community<0.4  # ragas 0.4.3 imports a module removed in langchain-community 0.4
-mlflow

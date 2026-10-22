@@ -1,0 +1,7 @@
+# development, tests, evaluation (not shipped in the container)
+-r requirements.txt
+pytest
+ruff
+ragas
+langchain-community<0.4  # ragas 0.4.3 imports a module removed in langchain-community 0.4
+mlflow

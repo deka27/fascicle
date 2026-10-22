@@ -68,11 +68,11 @@ def judge_scores(faithfulness, q, out):
         scores["faithfulness"] = faithfulness.score(
             user_input=q["question"], response=out["answer"], retrieved_contexts=contexts
         ).value
-    except Exception as e:  # judge output occasionally fails to parse; skip that score, keep the run
+    except Exception as e:  # noqa: BLE001 -- judge output occasionally fails to parse; skip that score, keep the run
         print(f"  faithfulness judge failed: {e!r}")
     try:
         scores |= correctness(q["reference"], out["answer"])
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"  correctness judge failed: {e!r}")
     return scores
 

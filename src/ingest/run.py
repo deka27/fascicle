@@ -18,10 +18,10 @@ SECTION_NAMES = (
     r"abstract|introduction|background|theory|methods?|materials and methods|results(?: and discussions?)?"
     r"|discussion(?: and conclusions?)?|conclusions?|acknowledge?ments?|references|bibliography|appendix(?: [a-z])?"
 )
-HEADING = re.compile(rf"(?:[IVX]+\.|\d+\.)?\s*({SECTION_NAMES})", re.I)  # whole line, e.g. "2. Methods", "I. INTRODUCTION"
+HEADING = re.compile(rf"(?:[IVX]+\.|\d+\.)?\s*({SECTION_NAMES})", re.IGNORECASE)  # whole line, e.g. "2. Methods", "I. INTRODUCTION"
 SMALL_CAPS = re.compile(r"\b([A-Z]) (?=[A-Z]{2})")  # IEEE small caps extract as "I NTRODUCTION"
-SKIP = re.compile(r"acknowledge?ments?|references|bibliography", re.I)
-BOILERPLATE = re.compile(r"bioRxiv|downloaded from|IOPscience", re.I)  # per-page publisher footers
+SKIP = re.compile(r"acknowledge?ments?|references|bibliography", re.IGNORECASE)
+BOILERPLATE = re.compile(r"bioRxiv|downloaded from|IOPscience", re.IGNORECASE)  # per-page publisher footers
 GLYPH = re.compile(r"/C(\d{2,3})")  # some PDFs encode characters as /C<ascii code>
 SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 

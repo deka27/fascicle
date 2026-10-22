@@ -1,5 +1,7 @@
 # Fascicle
 
+[![CI](https://github.com/deka27/fascicle/actions/workflows/ci.yml/badge.svg)](https://github.com/deka27/fascicle/actions/workflows/ci.yml)
+
 **Retrieval-augmented question answering over the tractography and diffusion-MRI literature.**
 
 Ask a question about diffusion MRI, fiber tracking, bundle segmentation, or microstructure modeling. Fascicle retrieves the relevant passages from a curated corpus of research papers and answers **with citations back to the source paper and section**.
@@ -106,7 +108,8 @@ PDFs are not redistributed in this repository. `papers/raw/` is gitignored; supp
 ```
 fascicle/
 ├── README.md
-├── requirements.txt
+├── requirements.txt            # runtime (what the container installs)
+├── requirements-dev.txt        # + tests, lint, evaluation
 ├── .env.example                # environment variables (API keys)
 ├── papers/                     # corpus (see above)
 ├── src/
@@ -154,9 +157,9 @@ fascicle/
 - [ ] Improve retrieval against the baseline
 
 ### Phase 5 — Containerization and CI
-- [ ] Multi-stage `Dockerfile`
-- [ ] `pytest` coverage for ingestion and retrieval
-- [ ] GitHub Actions: lint → test → build
+- [x] Multi-stage `Dockerfile` (CPU-only torch, embedding model baked in, index mounted at run time)
+- [x] `pytest` coverage for chunking, section detection, retrieval, API, and eval metrics
+- [x] GitHub Actions: lint → test → build
 
 ### Phase 6 — Deployment and monitoring
 - [ ] Container registry + Cloud Run / ECS deployment
@@ -171,7 +174,7 @@ fascicle/
 git clone https://github.com/deka27/fascicle.git
 cd fascicle
 python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cp .env.example .env          # add your API key
 
 # ingest the corpus
@@ -179,7 +182,21 @@ python -m src.ingest.run --papers papers/raw
 
 # run the API + web UI, then open http://localhost:8000
 uvicorn src.api.main:app --reload
+
+# tests and lint
+python -m pytest -q && ruff check .
 ```
+
+### Docker
+
+The image contains the app and the embedding model but not the index, which holds text from copyrighted papers. Build the index locally (above), then mount it:
+
+```bash
+docker build -t fascicle .
+docker run -p 8000:8000 --env-file .env -v "$PWD/chroma:/app/chroma" fascicle
+```
+
+`/health` reports the number of indexed chunks, so `"chunks": 0` means the index wasn't mounted.
 
 ## Usage
 
